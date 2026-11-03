@@ -1,0 +1,32 @@
+{% extends "admin_base.html" %}
+{% set active = 'photos' %}
+{% block title %}Photos{% endblock %}
+{% block head %}<style>
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.9rem}
+.pc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem;text-align:center}
+.pc .av{margin:0 auto .5rem;--s:88px}
+.pc input[type=file]{margin:.5rem 0;font-size:.85rem}
+</style>{% endblock %}
+{% block content %}
+<div class="wrap" style="max-width:68rem">
+  <h1>Photos</h1>
+  {% if msg %}<div class="msg {{ 'err' if bad else 'ok' }}" role="status">{{ msg }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="card">
+    <h2>Upload many at once</h2>
+    <p class="muted">Select all photos together. Name each file with the presenter number (12.jpg), the staff ID (S0042.jpg) or the exact presenter name. Photos are cropped to a square and resized for you.</p>
+    <input type="file" name="files" accept="image/*" multiple>
+    <button class="gold" style="margin-top:.8rem">Upload photos</button>
+  </form>
+  <div class="g">
+    {% for p, url in items %}
+    <form class="pc" method="post" enctype="multipart/form-data">
+      {% if url %}<img class="av" src="{{ url }}" alt="Photo of {{ p.name }}">{% else %}<span class="av">{{ p.name|initials }}</span>{% endif %}
+      <b>{{ p.id }}. {{ p.name }}</b>
+      <input type="hidden" name="pid" value="{{ p.id }}">
+      <input type="file" name="files" accept="image/*" required aria-label="Photo for {{ p.name }}">
+      <button class="sm">{{ 'Replace photo' if url else 'Add photo' }}</button>
+    </form>
+    {% else %}<p class="muted">No presenters yet. Import them first.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block head %}<style>
+.hero{background:var(--plum);color:#fff;padding:2.2rem 1.2rem 2.4rem}
+.hero .in{max-width:38rem;margin:0 auto}
+.hero h1{font-size:2.1rem;margin-bottom:.5rem}.hero p{color:#CFC6E6;margin:0}
+.list{max-width:38rem;margin:0 auto;padding:1rem 1rem 3rem}
+.list a{display:flex;gap:.9rem;align-items:center;padding:.8rem .3rem;border-bottom:1px solid var(--line);text-decoration:none}
+.list b{display:block;line-height:1.2}
+</style>{% endblock %}
+{% block body %}
+<header class="hero"><div class="in">
+  <h1>{{ event_name }}</h1>
+  <p>Scan the QR code on the stage screen to score the presentation you just watched.</p>
+</div></header>
+<main class="list">
+  <p class="hint">Can't scan? Pick the presenter here.</p>
+  {% for p in presenters %}
+  <a href="{{ url_for('rate', pid=p.id) }}">
+    {% if photo_url(p.id) %}<img class="av" src="{{ photo_url(p.id) }}" alt="" width="48" height="48">{% else %}<span class="av">{{ p.name|initials }}</span>{% endif %}
+    <span><b>{{ p.name }}</b><span class="muted">{{ p.portfolio }}</span></span>
+  </a>
+  {% else %}<p class="muted">No presenters have been added yet.</p>{% endfor %}
+</main>
+{% endblock %}

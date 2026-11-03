@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block body %}
+<header class="topbar">
+  <span class="brand">{{ event_name }}</span>
+  <nav aria-label="Admin">
+    {% for key, label, href in [('control','Control','/admin'),('qr','QR code','/admin/qr'),('photos','Photos','/admin/photos'),('import','Import','/admin/import'),('data','Data','/admin/data')] %}
+    <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+    <a href="/display" target="_blank" rel="noopener">Projector</a>
+    <a href="/admin/logout">Sign out</a>
+  </nav>
+</header>
+{% block content %}{% endblock %}
+{% endblock %}

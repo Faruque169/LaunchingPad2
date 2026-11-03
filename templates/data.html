@@ -1,0 +1,83 @@
+{% extends "admin_base.html" %}
+{% set active = 'data' %}
+{% block title %}Data{% endblock %}
+{% block head %}<style>
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.counts div{padding:.9rem 1rem;border-right:1px solid var(--line)}.counts div:last-child{border-right:0}
+.counts b{display:block;font:800 1.9rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+@media (max-width:560px){.counts{grid-template-columns:repeat(2,1fr)}.counts div:nth-child(2){border-right:0}.counts div:nth-child(-n+2){border-bottom:1px solid var(--line)}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+.scroll{max-height:22rem;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.scroll table td{padding:.45rem .7rem}
+</style>{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Data</h1>
+  {% if msg %}<div class="msg {{ 'err' if bad else 'ok' }}" role="status">{{ msg }}</div>{% endif %}
+
+  <section class="card">
+    <h2>Loaded now</h2>
+    <div class="counts">
+      <div><b>{{ counts.presenters }}</b>Presenters</div><div><b>{{ counts.staff }}</b>Staff IDs</div>
+      <div><b>{{ counts.votes }}</b>Scores</div><div><b>{{ counts.photos }}</b>Photos</div>
+    </div>
+    {% if dup_count %}
+    <form method="post" action="{{ url_for('admin_clear', what='duplicates') }}" class="danger-row" style="margin-top:.8rem">
+      <div><b>{{ dup_count }} duplicate presenter{{ '' if dup_count == 1 else 's' }} found</b><div class="hint">Same name listed more than once, usually from importing twice. Keeps the copy that has scores, otherwise the lowest number.</div></div>
+      <div class="ctl"><input type="text" name="confirm" placeholder="Type DELETE" autocomplete="off" aria-label="Type DELETE to remove duplicates" data-gate><button class="danger sm" disabled>Remove duplicates</button></div>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Event settings</h2>
+    <form method="post" action="{{ url_for('admin_data_settings') }}" class="grid2">
+      <div><label for="en">Event title</label><input id="en" type="text" name="event_name" value="{{ event_name if event_name != 'Presentation Showcase' else '' }}" placeholder="Presentation Showcase" maxlength="120"></div>
+      <div><label for="bu">Public address for QR codes</label><input id="bu" type="text" name="base_url" value="{{ base }}" placeholder="https://your-app.onrender.com"></div>
+      <div><button class="gold">Save settings</button></div>
+    </form>
+    <p class="hint" style="margin-top:.7rem">Use the address phones open. On your own PC for a phone test, use your network address, for example http://192.168.1.25:5000.</p>
+  </section>
+
+  <section class="card">
+    <h2>Presenters</h2>
+    <div class="scroll tablewrap"><table><tbody>
+    {% for p in presenters %}
+      <tr><td class="num" style="width:3rem">{{ p.id }}</td><td><b>{{ p.name }}</b> <span class="muted">{{ p.portfolio }}</span></td>
+      {% set nv = votes_by.get(p.id, 0) %}<td class="num muted">{{ nv }} score{{ "" if nv == 1 else "s" }}</td>
+      <td style="text-align:right"><form method="post" action="{{ url_for('admin_delete_presenter', pid=p.id) }}" onsubmit="return confirm('Delete {{ p.name|e|replace("'", "") }} with their photo and {{ nv }} scores?')"><button class="danger sm">Delete</button></form></td></tr>
+    {% else %}<tr><td class="muted">No presenters loaded.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Staff IDs</h2>
+    <form method="get" class="row" style="margin-bottom:.8rem"><input type="search" name="q" value="{{ q }}" placeholder="Search by staff ID or name" aria-label="Search staff" style="max-width:22rem"><button class="ghost">Search</button>{% if q %}<a class="btn ghost" href="{{ url_for('admin_data') }}">Clear search</a>{% endif %}</form>
+    <p class="hint">{{ staff_matches }} {{ 'match' if q else 'staff ID' }}{{ '' if staff_matches == 1 else ('es' if q else 's') }}{% if staff_matches > 40 %}, showing the first 40{% endif %}.</p>
+    <div class="scroll tablewrap"><table><tbody>
+    {% for s in staff %}
+      <tr><td><b>{{ s.display_id or s.staff_id }}</b></td><td class="muted">{{ s.name }}</td>
+      <td style="text-align:right"><form method="post" action="{{ url_for('admin_delete_staff', sid=s.staff_id) }}" onsubmit="return confirm('Delete staff ID {{ (s.display_id or s.staff_id)|e }}?')"><button class="danger sm">Delete</button></form></td></tr>
+    {% else %}<tr><td class="muted">No staff IDs found.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Clear data</h2>
+    <p class="hint">Type DELETE, then press the button. A copy of all scores is saved on the server first, and you can also <a href="/admin/export.csv">download the scores</a> before you clear them.</p>
+    {% for key, label, note in [
+      ('votes','Reset all scores','Sets every presenter back to waiting. Keeps presenters, photos and staff IDs. Use this after a test run.'),
+      ('presenters','Delete all presenters','Also deletes their photos and scores. Numbering restarts at 1.'),
+      ('staff','Delete all staff IDs','Scores already given are kept.'),
+      ('all','Delete everything','Presenters, photos, scores and staff IDs.')] %}
+    <form method="post" action="{{ url_for('admin_clear', what=key) }}" class="danger-row">
+      <div><b>{{ label }}</b><div class="hint">{{ note }}</div></div>
+      <div class="ctl"><input type="text" name="confirm" placeholder="Type DELETE" autocomplete="off" aria-label="Type DELETE to confirm: {{ label }}" data-gate><button class="danger sm" disabled>{{ label }}</button></div>
+    </form>
+    {% endfor %}
+  </section>
+</div>
+<script>
+document.querySelectorAll('input[data-gate]').forEach(i=>{const b=i.closest('form').querySelector('button');i.addEventListener('input',()=>{b.disabled=i.value.trim()!=='DELETE'})});
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "admin_base.html" %}
+{% set active = 'qr' %}
+{% block title %}QR code{% endblock %}
+{% block bodyclass %}qrpage{% endblock %}
+{% block head %}<style>
+body.qrpage{background:var(--plum);min-height:100vh}
+:fullscreen .topbar{display:none}
+.qs{max-width:44rem;margin:0 auto;padding:1.4rem 1rem 2rem;display:flex;flex-direction:column;align-items:center;gap:1.3rem;color:#fff}
+.qs .who{display:flex;gap:1rem;align-items:center;max-width:100%}
+.qs h1{font-size:clamp(1.8rem,5vw,2.8rem);margin:0;overflow-wrap:anywhere}
+.qs .pf{color:#D8D0EE;font-size:1.2rem;margin:0}
+.qs .ticket{--bg:var(--plum);width:min(100%,25rem);box-shadow:0 0 0 .3rem var(--plum-3)}
+.qs .ticket .q{padding:1.6rem 1.6rem 1.2rem}
+.qs .ticket img{display:block;width:100%;height:auto;aspect-ratio:1}
+.qs .ticket .foot{padding:1rem 1.6rem 1.4rem;text-align:center}
+.qs .ticket .foot b{display:block;font:800 1.5rem var(--display)}
+.qs .ticket .foot span{color:#5B4F78;font-size:.95rem;overflow-wrap:anywhere}
+.ctl{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;align-items:center}
+.ctl select{width:auto;max-width:18rem;background:var(--plum-2);color:#fff;border-color:var(--plum-4)}
+.qs button.ghost{color:#fff;border-color:var(--plum-4)}
+.follow{display:inline-flex;gap:.5rem;align-items:center;font-weight:700;color:#E6E0F5;margin:0}
+.follow input{width:1.2rem;height:1.2rem;accent-color:var(--gold)}
+.warn{background:#FFE9B8;color:#4A3200;padding:.8rem 1rem;border-radius:12px;font-weight:700;max-width:38rem}
+.warn a{color:inherit}
+.counter{color:#CFC6E6;margin:0}
+@media print{.topbar,.ctl,.warn,.counter{display:none!important}body.qrpage{background:#fff}.qs{color:#1F1433}.qs .pf{color:#4B3F66}.qs .ticket{box-shadow:0 0 0 2px #1F1433;--bg:#fff}}
+</style>{% endblock %}
+{% block content %}
+<main class="qs">
+  <div class="warn" id="warn" hidden></div>
+  <div class="who" id="who"></div>
+  <div class="ticket">
+    <div class="q"><img id="qr" alt="QR code"></div>
+    <div class="perf"></div>
+    <div class="foot"><b>Scan to score</b><span id="link"></span></div>
+  </div>
+  <p class="counter" id="counter"></p>
+  <div class="ctl" role="group" aria-label="Choose presenter">
+    <button class="ghost" id="prev">Previous</button>
+    <select id="pick" aria-label="Presenter"></select>
+    <button class="ghost" id="next">Next</button>
+    <button class="ghost" id="fs">Full screen</button>
+    <button class="ghost" onclick="print()">Print this QR</button>
+  </div>
+  <label class="follow"><input type="checkbox" id="follow" checked> Follow the presenter whose voting is open</label>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ini=n=>(String(n).replace(/\./g,' ').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('')||'?').toUpperCase();
+let list=[],cur=0,S=null;
+function show(i){
+  if(!list.length){$('who').innerHTML='<h1>No presenters yet</h1>';$('qr').removeAttribute('src');return}
+  cur=Math.max(0,Math.min(list.length-1,i));const p=list[cur];
+  $('who').innerHTML=(p.photo?`<img class="av ring" style="--s:84px" src="${p.photo}" alt="">`:`<span class="av ring" style="--s:84px">${esc(ini(p.name))}</span>`)+`<div><h1>${esc(p.name)}</h1><p class="pf">${esc(p.portfolio)}</p></div>`;
+  $('qr').src=`/qr/${p.id}.svg?t=${encodeURIComponent(S.base)}`;
+  $('link').textContent=(S.base+'/rate/'+p.id).replace(/^https?:\/\//,'');
+  $('counter').textContent=`Presenter ${cur+1} of ${list.length}`+(p.status==='open'?', voting is open':'');
+  $('pick').value=p.id;location.hash='p='+p.id;
+}
+async function load(first){
+  try{
+    const r=await fetch('/admin/api/state',{cache:'no-store'});if(r.status===401){location='/admin/login';return}
+    S=await r.json();const was=list.length;list=S.presenters;
+    $('warn').hidden=S.base_ok;
+    if(!S.base_ok)$('warn').innerHTML='This QR code points to '+esc(S.base)+', which phones cannot open. Set the public address in <a href="/admin/data">Data</a>, or open this page with your network address.';
+    if(first||list.length!==was){$('pick').innerHTML=list.map(p=>`<option value="${p.id}">${p.id}. ${esc(p.name)}</option>`).join('')}
+    const op=list.findIndex(p=>p.status==='open');
+    if(first){const h=+((location.hash.match(/p=(\d+)/)||[])[1]||0);const hi=list.findIndex(p=>p.id===h);show(hi>=0?hi:(op>=0?op:0))}
+    else if($('follow').checked&&op>=0&&op!==cur)show(op);
+    else if(list[cur])$('counter').textContent=`Presenter ${cur+1} of ${list.length}`+(list[cur].status==='open'?', voting is open':'');
+  }catch(e){}
+}
+const manual=i=>{$('follow').checked=false;show(i)};
+$('prev').onclick=()=>manual(cur-1);$('next').onclick=()=>manual(cur+1);
+$('pick').onchange=e=>manual(list.findIndex(p=>p.id===+e.target.value));
+document.addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;if(e.key==='ArrowLeft')manual(cur-1);if(e.key==='ArrowRight')manual(cur+1)});
+$('fs').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+load(true);setInterval(()=>load(false),2500);
+</script>
+{% endblock %}

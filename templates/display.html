@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ event_name }} live{% endblock %}
+{% block bodyclass %}stage{% endblock %}
+{% block head %}
+<style>
+html{font-size:clamp(13px,1.5vw,32px)}
+body.stage{background:var(--plum);color:#F4F0FB;font-size:1rem;overflow:hidden;height:100vh}
+.screen{height:100vh;display:flex;flex-direction:column;padding:2vh 2.2rem 2.4vh;gap:1.6vh}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:1rem;color:#CFC6E6}
+.bar .evt{font:800 1.3rem var(--display);color:#fff}
+.bar .prog{font-size:1.05rem}
+main{flex:1;min-height:0;display:grid;grid-template-columns:1.1fr .9fr;gap:2rem}
+main.solo{grid-template-columns:1fr}
+.panel[hidden]{display:none}
+.panel{min-height:0;display:flex;flex-direction:column;justify-content:center}
+.lab{display:inline-flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.15rem;color:#CFC6E6;margin-bottom:1.2rem}
+.lab.live{color:#7FE9CF}.lab.live::before{content:"";width:.7rem;height:.7rem;border-radius:50%;background:#3DDBB6;animation:pulse 1.8s ease-in-out infinite}
+.pres{display:flex;align-items:center;gap:1.8rem}
+.pres h1{font-size:clamp(2.2rem,4.4vw,4.6rem);color:#fff;margin:0 0 .4rem;overflow-wrap:anywhere}
+.pres p{font-size:1.6rem;color:#D8D0EE;margin:0}
+.count{margin-top:2.4rem;display:flex;align-items:baseline;gap:1rem;font-size:1.5rem;color:#D8D0EE}
+.count b{font:800 5rem/1 var(--display);color:var(--gold);font-variant-numeric:tabular-nums}
+.meter{height:.8rem;border-radius:99px;background:var(--plum-3);margin-top:1rem;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--gold);border-radius:99px;transition:width .6s ease}
+/* ticket on the stage */
+.ticket{--bg:var(--plum);align-self:center;width:min(100%,24rem,62vh);margin:0 auto;box-shadow:0 0 0 .35rem var(--plum-3)}
+.ticket .qr{padding:1.8rem 1.8rem 1.4rem}
+.ticket .qr img{display:block;width:100%;height:auto;aspect-ratio:1}
+.ticket .foot{padding:1.1rem 1.8rem 1.6rem;text-align:center}
+.ticket .foot b{display:block;font:800 1.7rem var(--display)}
+.ticket .foot span{color:#5B4F78;font-size:1rem;overflow-wrap:anywhere}
+/* result */
+.big{font:800 clamp(9rem,19vw,18rem)/.85 var(--display);color:var(--gold);font-variant-numeric:tabular-nums;letter-spacing:-.04em;margin:1.2rem 0 1.4rem}
+.facts{font-size:1.7rem;color:#D8D0EE}.facts b{color:#fff}
+/* leaderboard: sized by screen height so 10 rows always fit */
+.board{display:flex;flex-direction:column;gap:.6vh;min-height:0;justify-content:center}
+.board h2{font-size:2.6vh;color:#CFC6E6;margin:0 0 .6vh}
+.item{display:grid;grid-template-columns:3.4vh 1fr auto;align-items:center;gap:1.6vh;height:7.4vh;padding:0 2vh;border-radius:1.6vh;background:var(--plum-2)}
+.item .r{font:800 3vh var(--display);color:var(--gold)}
+.item .n{display:flex;align-items:center;gap:1.6vh;min-width:0;font-size:2.6vh;font-weight:700;line-height:1.15}
+.item .n .av{--s:5.2vh!important}
+.item .n span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .n small{display:block;font-weight:400;color:#B9AFD6;font-size:1.9vh}
+.item .a{font:800 3.6vh var(--display);font-variant-numeric:tabular-nums}
+.item.hl{background:var(--plum-4);box-shadow:inset 0 0 0 .3vh var(--gold)}
+.wait{font:800 clamp(2rem,4vw,3.8rem)/1.15 var(--display);color:#fff}
+.sub{font-size:1.4rem;color:#CFC6E6;margin-top:1rem}
+/* final: sized by screen height */
+.final{display:flex;flex-direction:column;gap:1.8vh;min-height:0}
+.final h1{margin:0;font-size:5vh;color:#fff;text-align:center}
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:2vh;align-items:end}
+.pod{background:var(--plum-2);border-radius:2vh;padding:1.6vh;text-align:center}
+.pod.p1{background:var(--plum-3);box-shadow:inset 0 0 0 .35vh var(--gold);padding-bottom:2.4vh}
+.pod .av{margin:0 auto .8vh;--s:11vh!important}.pod.p1 .av{--s:14vh!important}
+.pod .rk{font:800 3vh var(--display);color:var(--gold)}
+.pod .nm{font:800 3vh/1.15 var(--display);color:#fff}
+.pod .pf{color:#B9AFD6;font-size:2vh}
+.pod .sc{font:800 5vh var(--display);color:#fff;margin-top:.4vh;font-variant-numeric:tabular-nums}
+.rest{display:grid;grid-auto-flow:column;grid-template-rows:repeat(10,auto);grid-auto-columns:1fr;gap:.6vh 1.6vh;min-height:0;align-content:start}
+.rest .item{height:3.9vh;padding:0 1.2vh;grid-template-columns:3vh 1fr auto;gap:1vh;border-radius:1vh}
+.rest .item .r{font-size:2vh}.rest .item .n{font-size:2vh}.rest .item .a{font-size:2.2vh}
+.rest .item .n .av{--s:3vh!important}.rest .item .n small{display:none}
+</style>
+{% endblock %}
+{% block body %}
+<div class="screen">
+  <header class="bar"><div class="evt" id="evt">{{ event_name }}</div><div class="prog" id="prog"></div></header>
+  <main id="main"><section class="panel" id="left"></section><section class="panel" id="right"></section></main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ini=n=>(String(n).replace(/\./g,' ').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('')||'?').toUpperCase();
+const ord=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
+const av=(p,s)=>p.photo?`<img class="av" style="--s:${s}rem" src="${p.photo}" alt="">`:`<span class="av" style="--s:${s}rem">${esc(ini(p.name))}</span>`;
+const put=(el,h)=>{if(el.dataset.h!==h){el.dataset.h=h;el.innerHTML=h}};
+const row=(r,hl)=>`<div class="item ${hl?'hl':''}"><span class="r">${r.rank}</span><div class="n">${av(r,2.6)}<span>${esc(r.name)}<small>${esc(r.portfolio||'')}</small></span></div><span class="a">${r.avg.toFixed(2)}</span></div>`;
+function board(rows,hlId){return `<div class="board"><h2>Top ${rows.length} so far</h2>${rows.map(r=>row(r,r.id===hlId)).join('')}</div>`}
+async function tick(){
+  let d;try{d=await (await fetch('/api/display',{cache:'no-store'})).json()}catch(e){return}
+  const main=$('main'),L=$('left'),R=$('right');
+  $('evt').textContent=d.event;
+  $('prog').textContent=d.count?`${d.done} of ${d.count} presentations scored`:'';
+  main.className='';
+  if(d.final&&d.board.length){
+    main.className='solo';R.hidden=true;
+    const t=d.board.slice(0,3),rest=d.board.slice(3);
+    const pod=(r,k)=>r?`<div class="pod p${k}">${av(r,k===1?7:5.5)}<div class="rk">${ord(r.rank)}</div><div class="nm">${esc(r.name)}</div><div class="pf">${esc(r.portfolio||'')}</div><div class="sc">${r.avg.toFixed(2)}</div></div>`:'<div></div>';
+    put(L,`<div class="final"><h1>Final results</h1><div class="podium">${pod(t[1],2)}${pod(t[0],1)}${pod(t[2],3)}</div><div class="rest">${rest.map(r=>row(r,false)).join('')}</div></div>`);
+    return}
+  R.hidden=false;
+  if(d.open){
+    const o=d.open;
+    put(L,`<div class="lab live">Voting is open</div><div class="pres">${av(o,9)}<div><h1>${esc(o.name)}</h1><p>${esc(o.portfolio||'')}</p></div></div><div class="count"><b id="cnt">0</b><span id="of"></span></div><div class="meter"><i id="fill"></i></div>`);
+    put(R,`<div class="ticket"><div class="qr"><img src="${o.qr}?v=${o.id}" alt="QR code to score ${esc(o.name)}"></div><div class="perf"></div><div class="foot"><b>Scan to score</b><span>${esc(o.link)}</span></div></div>`);
+    $('cnt').textContent=o.votes;$('of').textContent=`of ${o.total} scores in`;
+    $('fill').style.width=(o.total?Math.min(100,o.votes/o.total*100):0)+'%';
+    return}
+  if(d.mode==='final'&&!d.final){
+    main.className='solo';R.hidden=true;
+    put(L,`<div class="wait">Scores are revealed after the last presentation.</div><div class="sub">${d.done} of ${d.count} presentations scored so far</div>`);return}
+  if(d.shown){
+    const s=d.shown;
+    put(L,`<div class="lab">Result</div><div class="pres">${av(s,5)}<div><h1 style="font-size:clamp(1.8rem,3.2vw,3.2rem)">${esc(s.name)}</h1><p style="font-size:1.3rem">${esc(s.portfolio||'')}</p></div></div><div class="big">${s.avg.toFixed(2)}</div><div class="facts">Ranked <b>${ord(s.rank)}</b> of ${d.ranked} so far, from ${s.votes} scores</div>`);
+  }else{
+    put(L,`<div class="wait">${d.board.length?'Waiting for the next presentation':'Waiting for the first presentation'}</div>`);
+  }
+  if(d.board.length){put(R,board(d.board,d.shown?d.shown.id:0))}else{R.hidden=true;main.className='solo'}
+}
+tick();setInterval(tick,2000);
+</script>
+{% endblock %}

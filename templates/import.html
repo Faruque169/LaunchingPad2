@@ -1,0 +1,33 @@
+{% extends "admin_base.html" %}
+{% set active = 'import' %}
+{% block title %}Import{% endblock %}
+{% block content %}
+<div class="wrap narrow" style="max-width:40rem">
+  <h1>Import</h1>
+  <p class="muted">Currently {{ staff }} staff IDs and {{ presenters }} presenters are loaded. To remove or fix entries, open <a href="/admin/data">Data</a>.</p>
+  {% if msg %}<div class="msg {{ 'err' if bad else 'ok' }}" role="status">{{ msg }}
+    {% if problems %}<ul class="problems">{% for p in problems %}<li>{{ p }}</li>{% endfor %}{% if more %}<li>and {{ more }} more</li>{% endif %}</ul>{% endif %}
+  </div>{% endif %}
+  <form method="post" enctype="multipart/form-data">
+    <section class="card">
+      <h2>Staff IDs</h2>
+      <label for="st">CSV file with columns staff_id, name</label>
+      <p class="hint">Each staff ID may appear only once. A file with a repeated ID is rejected and the rows are listed. Leading zeros don't matter: 004512 and 4512 are the same person.</p>
+      <input id="st" type="file" name="staff" accept=".csv">
+      <fieldset style="margin-top:.8rem"><legend class="hint" style="font-weight:400">If staff IDs are already loaded</legend>
+        <label style="font-weight:400"><input type="radio" name="staff_mode" value="add" checked> Add to the current list</label>
+        <label style="font-weight:400"><input type="radio" name="staff_mode" value="replace"> Replace the current list</label></fieldset>
+    </section>
+    <section class="card">
+      <h2>Presenters</h2>
+      <label for="pr">CSV file with columns name, portfolio, staff_id (optional)</label>
+      <input id="pr" type="file" name="presenters" accept=".csv">
+      <fieldset style="margin-top:.8rem"><legend class="hint" style="font-weight:400">If presenters are already loaded</legend>
+        <label style="font-weight:400"><input type="radio" name="pres_mode" value="add" checked> Add new names only. Names already in the list are skipped.</label>
+        <label style="font-weight:400"><input type="radio" name="pres_mode" value="replace"> Replace the current list. Deletes their photos too.</label></fieldset>
+      <p class="hint" style="margin-top:.6rem">Replacing presenters is blocked once scores exist, so you cannot wipe results by accident.</p>
+    </section>
+    <button class="gold">Import</button>
+  </form>
+</div>
+{% endblock %}

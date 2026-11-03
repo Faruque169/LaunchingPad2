@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Score {{ p.name }}{% endblock %}
+{% block head %}
+<style>
+.rate-head{background:var(--plum);color:#fff;padding:1rem 1.1rem 1.5rem}
+.rate-head .in{max-width:34rem;margin:0 auto}
+.evt{color:#CFC6E6;font-size:.95rem;margin:0 0 1rem}
+.who{display:flex;gap:1rem;align-items:center}
+.who h1{font-size:1.75rem;margin:0 0 .15rem;overflow-wrap:anywhere}
+.who p{margin:0;color:#D8D0EE}
+.rate-head .pill{margin-top:1.1rem;background:var(--plum-3);color:#E8E2F6}
+.rate-head .pill.open{background:var(--live);color:#fff}
+main{max-width:34rem;margin:0 auto;padding:1.4rem 1.1rem 6.5rem}
+.pad{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem}
+.pad button{background:var(--card);color:var(--ink);border:2px solid var(--line);height:3.9rem;padding:0;border-radius:14px;font:800 1.65rem/1 var(--display);font-variant-numeric:tabular-nums;transition:transform .08s}
+.pad button:active{transform:scale(.94)}
+.pad button[aria-pressed=true]{background:var(--gold);border-color:var(--gold);color:var(--gold-ink);transform:scale(1.05)}
+.scale{display:flex;justify-content:space-between;color:var(--muted);font-size:.9rem;margin-top:.5rem}
+.sel{min-height:1.6rem;margin:.6rem 0 0;font-weight:700}
+details.more{margin-top:1.2rem}
+details.more summary{cursor:pointer;font-weight:700;padding:.4rem 0}
+details.more textarea{margin-top:.5rem}
+.submitbar{position:fixed;left:0;right:0;bottom:0;padding:.8rem 1.1rem calc(.8rem + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--paper) 70%,transparent)}
+.submitbar button{display:flex;width:100%;max-width:34rem;margin:0 auto;padding:1.05rem;font-size:1.1rem}
+.field+.field{margin-top:1.4rem}
+.ticket{--bg:var(--paper);margin-top:.4rem;box-shadow:0 0 0 1px var(--line)}
+.ticket .top{padding:1.6rem 1.6rem 1.4rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.ticket .top b{font:800 1.3rem var(--display)}
+.ticket .top .s{font:800 4.6rem/0.9 var(--display);color:var(--plum);font-variant-numeric:tabular-nums}
+.ticket .bot{padding:1.2rem 1.6rem 1.6rem;color:#4B3F66}
+.idcheck{min-height:1.5rem;margin:.45rem 0 0;font-weight:700;font-size:.95rem}
+.idcheck.ok{color:var(--live)}.idcheck.bad{color:var(--bad)}.idcheck .note{display:block;font-weight:400;color:var(--muted)}
+@media (prefers-color-scheme:dark){.idcheck.ok{color:#5FE3C4}}
+.ticket .act{padding:0 1.6rem 1.6rem}
+.status{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:1rem 1.1rem;font-weight:700}
+</style>
+{% endblock %}
+{% block body %}
+<header class="rate-head"><div class="in">
+  <p class="evt">{{ event_name }}</p>
+  <div class="who">
+    {% if photo %}<img class="av ring" style="--s:88px" src="{{ photo }}" alt="Photo of {{ p.name }}" width="88" height="88">
+    {% else %}<span class="av ring" style="--s:88px">{{ p.name|initials }}</span>{% endif %}
+    <div><h1>{{ p.name }}</h1><p>{{ p.portfolio }}</p></div>
+  </div>
+  <span class="pill" id="pill">Voting not open yet</span>
+</div></header>
+<main>
+  <div id="state" aria-live="polite"></div>
+  <form id="form" hidden onsubmit="return false">
+    <div class="field">
+      <label for="sid">Your staff ID</label>
+      <input id="sid" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"{% if numeric_ids %} inputmode="numeric" placeholder="For example 004512"{% else %} placeholder="Your staff ID"{% endif %} aria-describedby="who">
+      <p class="idcheck" id="who" aria-live="polite"></p>
+    </div>
+    <fieldset class="field">
+      <legend id="lbl">Your score</legend>
+      <div class="pad" role="group" aria-labelledby="lbl" id="pad"></div>
+      <div class="scale" aria-hidden="true"><span>1 Needs work</span><span>10 Outstanding</span></div>
+      <p class="sel" id="sel" aria-live="polite"></p>
+    </fieldset>
+    <details class="more"><summary>Add a comment (optional)</summary>
+      <textarea id="cm" rows="3" maxlength="500" aria-label="Comment"></textarea></details>
+    <div id="err" role="alert"></div>
+    <div class="submitbar"><button id="go" class="gold" disabled>Submit score</button></div>
+  </form>
+</main>
+<script>
+const PID={{ p.id }}, PNAME={{ p.name|tojson }}, KEY='voted_'+PID, $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let score=0, status='{{ p.status }}', sending=false, editing=false;
+// who: {state:'idle'|'checking'|'ok'|'bad'|'own'|'offline', name, voted}
+let who={state:'idle'}, whoTimer=0, whoSeq=0;
+const sid=$('sid'); sid.value=store.get('staff_id')||'';
+$('pad').innerHTML=[...Array(10)].map((_,i)=>`<button type="button" aria-pressed="false" data-s="${i+1}" aria-label="Score ${i+1}">${i+1}</button>`).join('');
+function pick(n){score=n;[...$('pad').children].forEach(x=>x.setAttribute('aria-pressed',+x.dataset.s===n));$('sel').textContent=n?'Your score: '+n:'';check()}
+$('pad').onclick=e=>{const b=e.target.closest('button');if(b)pick(+b.dataset.s)};
+function check(){
+  const blocked=who.state==='bad'||who.state==='own'||who.state==='checking';
+  $('go').disabled=!(score&&sid.value.trim()&&status==='open'&&!sending&&!blocked);
+  if(!sending)$('go').textContent=who.voted?'Change my score':'Submit score';
+}
+function showWho(){
+  const el=$('who');
+  if(who.state==='ok'){el.className='idcheck ok';el.innerHTML='Scoring as '+esc(who.name||'this staff ID')+(who.voted?'<span class="note">You already scored this presenter. Submitting replaces your earlier score.</span>':'')}
+  else if(who.state==='own'){el.className='idcheck bad';el.textContent='This is your own presentation, so you can’t score it.'}
+  else if(who.state==='bad'){el.className='idcheck bad';el.textContent=who.error}
+  else if(who.state==='checking'){el.className='idcheck';el.textContent='Checking'}
+  else{el.className='idcheck';el.textContent=''}
+  check();
+}
+async function lookup(){
+  const v=sid.value.trim(), seq=++whoSeq;
+  if(!v){who={state:'idle'};showWho();return}
+  try{
+    const r=await fetch(`/api/whoami/${PID}?id=${encodeURIComponent(v)}`,{cache:'no-store'});
+    const d=await r.json(); if(seq!==whoSeq)return;
+    who=d.ok?(d.own?{state:'own'}:{state:'ok',name:d.name,voted:d.voted}):{state:'bad',error:d.error||'Staff ID not found. Check it and try again.'};
+  }catch(e){if(seq!==whoSeq)return;who={state:'offline'}}  // the server still checks on submit
+  showWho();
+}
+sid.addEventListener('input',()=>{clearTimeout(whoTimer);who={state:sid.value.trim()?'checking':'idle'};showWho();whoTimer=setTimeout(lookup,450)});
+const PILL={waiting:['Voting not open yet',''],open:['Voting open','open'],closed:['Voting closed','']};
+function render(){
+  const voted=store.get(KEY);
+  const pl=PILL[status]||PILL.waiting;$('pill').textContent=pl[0];$('pill').className='pill '+pl[1];
+  if(voted&&!editing){
+    $('form').hidden=true;
+    const open=status==='open', nm=store.get('staff_name_'+PID);
+    $('state').innerHTML=`<div class="ticket"><div class="top"><div><b>${store.get(KEY+'_changed')?'Score changed':'Score submitted'}</b><div class="hint" style="color:#6B5F86">${esc(PNAME)}${nm?'<br>Scored as '+esc(nm):''}</div></div><span class="s">${esc(voted)}</span></div><div class="perf"></div><div class="bot">${open?'Thank you. You can change your score until voting closes.':'Voting has closed. Your score is final.'}</div>${open?'<div class="act"><button type="button" class="ghost" id="edit" style="width:100%">Change my score</button></div>':''}</div>`;
+    if(open)$('edit').onclick=()=>{editing=true;pick(+voted||0);render();lookup()};
+    return}
+  $('state').innerHTML=status==='open'?'':`<div class="status">${status==='closed'?'Voting for this presenter has closed.':'Voting opens when the presenter finishes. This page updates by itself.'}</div>`;
+  $('form').hidden=status!=='open';
+  if(status!=='open')editing=false;
+  check();
+}
+async function poll(){try{const r=await fetch('/api/status/'+PID,{cache:'no-store'});const s=(await r.json()).status;if(s!==status){status=s;if(s!=='open')editing=false;render()}}catch(e){}}
+setInterval(poll,3000);render();if(sid.value.trim())lookup();
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+$('go').onclick=async()=>{
+  sending=true;$('go').disabled=true;$('go').textContent='Sending';$('err').innerHTML='';
+  const body=JSON.stringify({staff_id:sid.value,presenter_id:PID,score,comment:$('cm').value});
+  let res=null;
+  for(let i=0;i<5&&!res;i++){
+    try{const r=await fetch('/api/vote',{method:'POST',headers:{'Content-Type':'application/json'},body});res={s:r.status,d:await r.json()}}
+    catch(e){await wait(800*(i+1))}
+  }
+  sending=false;
+  if(!res){$('err').innerHTML='<div class="msg err">No connection. Your score has not been sent. Check your network, then try again.</div>';check();return}
+  if(res.d.ok){
+    store.set('staff_id',sid.value.trim());store.set(KEY,String(score));
+    store.set(KEY+'_changed',res.d.changed?'1':'');store.set('staff_name_'+PID,who.state==='ok'?(who.name||''):'');
+    editing=false;who.voted=true;render();window.scrollTo(0,0);return}
+  $('err').innerHTML='<div class="msg err">'+esc(res.d.error||'Something went wrong. Try again.')+'</div>';check();
+};
+</script>
+{% endblock %}
